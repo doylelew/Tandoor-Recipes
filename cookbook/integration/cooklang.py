@@ -118,10 +118,10 @@ class Cooklang(Integration):
     #     # check file extension, return True if extension is correct
     #     pass
 
-    # def get_file_from_recipe(self, recipe) -> tuple[str, str]:
-    #     # Export Recipe Logic - convert from Recipe() object to a writable string in your integration's format
-    #     # return 'Filename.extension', 'file string'
-    #     pass
+    def get_file_from_recipe(self, recipe) -> tuple[str, str]:
+        # Export Recipe Logic - convert from Recipe() object to a writable string in your integration's format
+        # return 'Filename.extension', 'file string'
+        return ("test", "test")
 
     # def get_files_from_recipes(self, recipes, el, cookie) -> list[list[str, bytes]]:
     #     # 'el' and 'cookie' are passed through by the calling function 'do_export'

@@ -152,7 +152,7 @@ def test_greater_greater_metadata_parser():
     parser_assertions(expected_metadata, expected_ingredients, expected_steps, recipe)
 
 
-def test_cooklang_integration(u1_s1):
+def test_cooklang_import_file(u1_s1):
     expected_metadata = {
         'name': "Christmas Butter Swirl Shortbread Cookies",
         "description": '"A great holiday treat for your loved ones"',
@@ -219,4 +219,25 @@ def test_cooklang_integration(u1_s1):
             step_ingredients_info = [(ingredient.food.name, float(ingredient.amount), ingredient.unit.name) for ingredient in steps[i].ingredients.all()]
             assert len(line) == len(step_ingredients_info)
             assert line == step_ingredients_info
+            i += 1
+
+
+def test_cooklang_export_file(u1_s1):
+    with open("cookbook/tests/other/test_data/Cooklang/American Pancakes_clean.cook", "r") as file:
+        expected_output = file.read().splitlines()
+
+    space, request = request_generator(u1_s1)
+    with (scope(space=space)):
+        cooklang_integration = Cooklang(request, "export")
+        with open("cookbook/tests/other/test_data/Cooklang/American Pancakes.cook", "rb") as file:
+            recipe_bytes = file.read()
+            recipe_name = file.name
+        buffer = BytesIO(recipe_bytes)
+        buffer.name = recipe_name
+        export_file = cooklang_integration.get_file_from_recipe(cooklang_integration.get_recipe_from_file(buffer))
+
+        assert export_file[0] == "American Pancakes.cook"
+        i = 0
+        for line in export_file[1]:
+            assert line == expected_output[i]
             i += 1
