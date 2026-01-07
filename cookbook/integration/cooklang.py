@@ -1,5 +1,4 @@
 import os
-from io import BytesIO, StringIO
 
 from recipe_scrapers._utils import get_minutes
 
@@ -9,6 +8,7 @@ from cookbook.helper.recipe_url_import import parse_servings, parse_servings_tex
 from cookbook.integration.integration import Integration
 from cookbook.models import Food, Ingredient, Keyword, Recipe, Step, Unit
 
+# from io import BytesIO, StringIO
 # from zipfile import ZipFile
 
 
@@ -28,7 +28,8 @@ class Cooklang(Integration):
         }
         for key in cooklang_metadata.keys():
             keyword, certainty = match_or_fuzzymatch(key, tandoor_recipe_meta_types)
-            if certainty >= 75:
+            acceptable_certainty = 75
+            if certainty >= acceptable_certainty:
                 match keyword:
                     case "servings":
                         tandoor_recipe.servings = parse_servings(cooklang_metadata[key])
@@ -38,7 +39,8 @@ class Cooklang(Integration):
                             item = item.lstrip()
                             if not item:
                                 continue
-                            tandoor_recipe.keywords.add(Keyword.objects.get_or_create(space=self.request.space, name=item)[0])
+                            tandoor_recipe.keywords.add(
+                                Keyword.objects.get_or_create(space=self.request.space, name=item)[0])
 
                     case "working time":
                         tandoor_recipe.working_time = get_minutes(cooklang_metadata[key])
@@ -50,7 +52,12 @@ class Cooklang(Integration):
                     case _:
                         setattr(tandoor_recipe, keyword, cooklang_metadata[key])
             else:
-                tandoor_recipe.keywords.add(Keyword.objects.get_or_create(space=self.request.space, name=cooklang_metadata[key])[0])
+                # If the metadata keyword does not match save the key value pair as its own keyword
+                tandoor_recipe.keywords.add(
+                    Keyword.objects.get_or_create(space=self.request.space, name=f"{key}: {cooklang_metadata[key]}")[0])
+
+    def convert_recipe_step_to_string(self, step: Step):
+        pass
 
     # ------------------------------------------Integration Method Override Functions------------------------------------------
 
@@ -63,7 +70,8 @@ class Cooklang(Integration):
             print(f"Cooklang Parser had Exception: {e}")
             raise e
         recipe = Recipe.objects.create(
-            name=os.path.basename(file.name).replace('.cook', ""), description="", created_by=self.request.user, internal=True, servings=1, space=self.request.space
+            name=os.path.basename(file.name).replace('.cook', ""), description="", created_by=self.request.user,
+            internal=True, servings=1, space=self.request.space
         )
         # specific metadata setup function
         self.apply_metadata_cooklang_to_tandoor(cooklang_object.metadata, recipe)
@@ -80,7 +88,8 @@ class Cooklang(Integration):
                         ingredients_list.append(
                             Ingredient.objects.create(
                                 food=Food.objects.get_or_create(name=block.value.name, space=self.request.space)[0],
-                                unit=Unit.objects.get_or_create(name=block.value.quantity.unit, space=self.request.space)[0],
+                                unit=
+                                Unit.objects.get_or_create(name=block.value.quantity.unit, space=self.request.space)[0],
                                 amount=block.value.quantity.amount,
                                 space=self.request.space,
                             )
@@ -105,7 +114,8 @@ class Cooklang(Integration):
                     case _:
                         instruction_string += block.value
             step = Step.objects.create(
-                instruction=instruction_string, order=i, space=self.request.space, show_ingredients_table=self.request.user.userpreference.show_step_ingredients
+                instruction=instruction_string, order=i, space=self.request.space,
+                show_ingredients_table=self.request.user.userpreference.show_step_ingredients
             )
             for step_ingredient in ingredients_list:
                 step.ingredients.add(step_ingredient)
@@ -119,9 +129,40 @@ class Cooklang(Integration):
     #     pass
 
     def get_file_from_recipe(self, recipe) -> tuple[str, str]:
-        # Export Recipe Logic - convert from Recipe() object to a writable string in your integration's format
-        # return 'Filename.extension', 'file string'
-        return ("test", "test")
+        print()
+        file_name = f"{recipe.name}.cook"
+        file_contents = "---\n"
+        metadata = f"Title: {recipe.name}\n"
+        if recipe.description:
+            metadata += f"Description: {recipe.description}\n"
+        if recipe.servings:
+            metadata += f"Servings: {recipe.servings}"
+            if recipe.servings_text:
+                metadata += f" {recipe.servings_text}"
+            metadata += "\n"
+        if recipe.working_time:
+            metadata += f"Working Time: {recipe.working_time} mins\n"
+            if recipe.waiting_time:
+                metadata += f"Waiting Time: {recipe.waiting_time} mins\n"
+        if recipe.source_url:
+            metadata += f"Source Url: {recipe.source_url}\n"
+
+        tags = []
+        for keyword in recipe.keywords.all():
+            if ":" in keyword.name:
+                metadata += f"{keyword.name}\n"
+            else:
+                tags.append(keyword.name)
+        metadata += f"Tags:\n\t- {"\n\t- ".join(tags)}\n".expandtabs(4)
+        file_contents += metadata
+        file_contents += "---\n\n"
+
+        # for step in Recipe.steps.all():
+        #     self.convert_recipe_step_to_string(step)
+
+        print(file_contents)
+
+        return (file_name, file_contents)
 
     # def get_files_from_recipes(self, recipes, el, cookie) -> list[list[str, bytes]]:
     #     # 'el' and 'cookie' are passed through by the calling function 'do_export'
